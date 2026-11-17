@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>世界時間儀表板</title>
+  <style>
+    :root {
+      --bg-page: #0f172a;
+      --bg-card: #1e293b;
+      --bg-card-home: #1e2d4a;
+      --border-card: rgba(148, 163, 184, 0.16);
+      --border-home: rgba(56, 189, 248, 0.55);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent: #38bdf8;
+      --badge-bg: rgba(148, 163, 184, 0.12);
+      --btn-bg: #1e293b;
+      --btn-hover: #334155;
+      --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.25);
+    }
+
+    body.light {
+      --bg-page: #f1f5f9;
+      --bg-card: #ffffff;
+      --bg-card-home: #f0f9ff;
+      --border-card: rgba(15, 23, 42, 0.1);
+      --border-home: rgba(2, 132, 199, 0.5);
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --accent: #0284c7;
+      --badge-bg: rgba(15, 23, 42, 0.06);
+      --btn-bg: #ffffff;
+      --btn-hover: #e2e8f0;
+      --shadow-card: 0 2px 10px rgba(15, 23, 42, 0.06);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100dvh;
+      overflow: hidden;
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .app {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: clamp(8px, 1.2vh, 14px) clamp(12px, 1.6vw, 22px);
+      gap: clamp(8px, 1.1vh, 12px);
+    }
+
+    /* 單行精簡頂部工具列 */
+    .topbar {
+      flex-shrink: 0;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .live-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background-color: #22c55e;
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
+      70% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+
+    .title-group h1 {
+      font-size: clamp(1rem, 1.9vh, 1.2rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .subtitle {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button {
+      height: 32px;
+      padding: 0 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border-card);
+      background: var(--btn-bg);
+      color: var(--text-primary);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    button:hover {
+      background: var(--btn-hover);
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    /* 3x3 單屏自適應九宮格 */
+    .clock-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: clamp(8px, 1.2vh, 14px);
+    }
+
+    .card {
+      min-height: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 14px;
+      padding: clamp(10px, 1.5vh, 16px) clamp(12px, 1.5vw, 18px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .card.is-home {
+      background: var(--bg-card-home);
+      border-color: var(--border-home);
+    }
+
+    /* 卡片上層：國旗 + 城市名 + 日夜與UTC */
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .city-info {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .flag-svg {
+      width: 28px;
+      height: 19px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.25);
+      display: block;
+    }
+
+    .city-name {
+      font-size: clamp(0.98rem, 2vh, 1.2rem);
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .meta-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      font-size: clamp(0.68rem, 1.3vh, 0.76rem);
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--badge-bg);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .badge.day {
+      color: #f59e0b;
+    }
+
+    .badge.night {
+      color: #818cf8;
+    }
+
+    /* 卡片中層：等寬大字體即時時鐘 */
+    .time-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin: auto 0;
+    }
+
+    .time-main {
+      font-size: clamp(1.75rem, 4.3vh, 2.75rem);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .time-sec {
+      font-size: clamp(1rem, 2.2vh, 1.35rem);
+      font-weight: 700;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .time-ampm {
+      font-size: clamp(0.75rem, 1.5vh, 0.9rem);
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-left: 2px;
+    }
+
+    /* 卡片下層：當地日期與台北時差 */
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: clamp(0.72rem, 1.45vh, 0.82rem);
+      color: var(--text-secondary);
+    }
+
+    .diff-tag {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .card.is-home .diff-tag {
+      color: var(--accent);
+    }
+
+    /* 手機直向時自動解除高度鎖定並轉為單欄可捲動 */
+    @media (max-width: 720px) {
+      html, body {
+        height: auto;
+        overflow-y: auto;
+      }
+      .app {
+        height: auto;
+        padding: 12px;
+      }
+      .subtitle {
+        display: none;
+      }
+      .clock-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+      .card {
+        padding: 14px 16px;
+        gap: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="title-group">
+        <span class="live-dot" title="即時同步中"></span>
+        <h1>世界時間</h1>
+        <span class="subtitle">自動即時跳秒 · 基準：台北 (UTC+8)</span>
+      </div>
+      <div class="controls">
+        <button id="toggleFormat" type="button">24 小時制</button>
+        <button id="toggleTheme" type="button">淺色模式</button>
+        <button id="copyAll" type="button">複製時間</button>
+      </div>
+    </header>
+
+    <main class="clock-grid" id="clockGrid"></main>
+  </div>
+
+  <script>
+    const FLAGS = {
+      TW: `<svg class="flag-svg" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="60" height="40" fill="#FE0000"/>
+        <rect width="30" height="20" fill="#000095"/>
+        <polygon points="15,2.5 15.98,6.33 18.75,3.5 17.69,7.31 21.5,6.25 18.67,9.02 22.5,10 18.67,10.98 21.5,13.75 17.69,12.69 18.75,16.5 15.98,13.67 15,17.5 14.02,13.67 11.25,16.5 12.31,12.69 8.5,13.75 11.33,10.98 7.5,10 11.33,9.02 8.5,6.25 12.31,7.31 11.25,3.5 14.02,6.33" fill="#FFFFFF"/>
+        <circle cx="15" cy="10" r="4.2" fill="#000095"/>
+        <circle cx="15" cy="10" r="3.4" fill="#FFFFFF"/>
+      </svg>`,
+      JP: `<svg class="flag-svg" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="60" height="40" fill="#FFFFFF"/>
+        <circle cx="30" cy="20" r="12" fill="#BC002D"/>
+      </svg>`,
+      AU: `<svg class="flag-svg" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="60" height="40" fill="#00008B"/>
+        <path d="M0,0 L30,20 M30,0 L0,20" stroke="#FFFFFF" stroke-width="3.6"/>
+        <path d="M0,0 L30,20 M30,0 L0,20" stroke="#FF0000" stroke-width="1.8"/>
+        <path d="M15,0 V20 M0,10 H30" stroke="#FFFFFF" stroke-width="6"/>
+        <path d="M15,0 V20 M0,10 H30" stroke="#FF0000" stroke-width="3.5"/>
+        <circle cx="15" cy="30" r="3.2" fill="#FFFFFF"/>
+        <circle cx="45" cy="8" r="1.8" fill="#FFFFFF"/>
+        <circle cx="39" cy="17" r="1.8" fill="#FFFFFF"/>
+        <circle cx="51" cy="15" r="1.8" fill="#FFFFFF"/>
+        <circle cx="45" cy="32" r="1.8" fill="#FFFFFF"/>
+        <circle cx="48" cy="22" r="1.2" fill="#FFFFFF"/>
+      </svg>`,
+      US: `<svg class="flag-svg" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="60" height="40" fill="#FFFFFF"/>
+        <g fill="#B22234">
+          <rect y="0" width="60" height="3.08"/>
+          <rect y="6.15" width="60" height="3.08"/>
+          <rect y="12.3" width="60" height="3.08"/>
+          <rect y="18.46" width="60" height="3.08"/>
+          <rect y="24.61" width="60" height="3.08"/>
+          <rect y="30.77" width="60" height="3.08"/>
+          <rect y="36.92" width="60" height="3.08"/>
+        </g>
+        <rect width="26" height="21.54" fill="#3C3B6E"/>
+        <g fill="#FFFFFF">
+          <circle cx="4.5" cy="3.8" r="1"/><circle cx="9.8" cy="3.8" r="1"/><circle cx="15.1" cy="3.8" r="1"/><circle cx="20.4" cy="3.8" r="1"/>
+          <circle cx="7.1" cy="7.3" r="1"/><circle cx="12.4" cy="7.3" r="1"/><circle cx="17.7" cy="7.3" r="1"/>
+          <circle cx="4.5" cy="10.8" r="1"/><circle cx="9.8" cy="10.8" r="1"/><circle cx="15.1" cy="10.8" r="1"/><circle cx="20.4" cy="10.8" r="1"/>
+          <circle cx="7.1" cy="14.3" r="1"/><circle cx="12.4" cy="14.3" r="1"/><circle cx="17.7" cy="14.3" r="1"/>
+          <circle cx="4.5" cy="17.8" r="1"/><circle cx="9.8" cy="17.8" r="1"/><circle cx="15.1" cy="17.8" r="1"/><circle cx="20.4" cy="17.8" r="1"/>
+        </g>
+      </svg>`,
+      GB: `<svg class="flag-svg" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="60" height="40" fill="#012169"/>
+        <path d="M0,0 L60,40 M60,0 L0,40" stroke="#FFFFFF" stroke-width="7"/>
+        <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="3.6"/>
+        <path d="M30,0 V40 M0,20 H60" stroke="#FFFFFF" stroke-width="11"/>
+        <path d="M30,0 V40 M0,20 H60" stroke="#C8102E" stroke-width="6.5"/>
+      </svg>`,
+      DE: `<svg class="flag-svg" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <rect y="0" width="60" height="13.34" fill="#000000"/>
+        <rect y="13.33" width="60" height="13.34" fill="#DD0000"/>
+        <rect y="26.66" width="60" height="13.34" fill="#FFCE00"/>
+      </svg>`,
+      ES: `<svg class="flag-svg" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+        <rect y="0" width="60" height="10" fill="#AA151B"/>
+        <rect y="10" width="60" height="20" fill="#F1BF00"/>
+        <rect y="30" width="60" height="10" fill="#AA151B"/>
+        <rect x="15" y="15" width="6" height="9" rx="2" fill="#AA151B"/>
+        <rect x="16.5" y="16.5" width="3" height="6" fill="#F1BF00"/>
+        <rect x="13" y="15" width="1.2" height="9" fill="#94A3B8"/>
+        <rect x="21.8" y="15" width="1.2" height="9" fill="#94A3B8"/>
+      </svg>`
+    };
+
+    const CITIES = [
+      { name: "台北", timeZone: "Asia/Taipei", flag: "TW", isHome: true },
+      { name: "東京", timeZone: "Asia/Tokyo", flag: "JP" },
+      { name: "雪梨", timeZone: "Australia/Sydney", flag: "AU" },
+      { name: "洛杉磯", timeZone: "America/Los_Angeles", flag: "US" },
+      { name: "芝加哥", timeZone: "America/Chicago", flag: "US" },
+      { name: "紐約", timeZone: "America/New_York", flag: "US" },
+      { name: "倫敦", timeZone: "Europe/London", flag: "GB" },
+      { name: "法蘭克福", timeZone: "Europe/Berlin", flag: "DE" },
+      { name: "Moralzarzal", timeZone: "Europe/Madrid", flag: "ES" }
+    ];
+
+    const WEEKDAYS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+    let is24Hour = true;
+
+    const gridEl = document.getElementById("clockGrid");
+
+    // 初始化卡片 DOM
+    CITIES.forEach((city, idx) => {
+      const card = document.createElement("article");
+      card.className = `card${city.isHome ? " is-home" : ""}`;
+      card.innerHTML = `
+        <div class="card-header">
+          <div class="city-info">
+            ${FLAGS[city.flag]}
+            <span class="city-name">${city.name}</span>
+          </div>
+          <div class="meta-badges">
+            <span class="badge" id="daynight-${idx}">--</span>
+            <span class="badge" id="utc-${idx}">UTC</span>
+          </div>
+        </div>
+        <div class="time-row">
+          <span class="time-main" id="hm-${idx}">--:--</span>
+          <span class="time-sec" id="sec-${idx}">--</span>
+          <span class="time-ampm" id="ampm-${idx}"></span>
+        </div>
+        <div class="card-footer">
+          <span id="date-${idx}">----/--/--</span>
+          <span class="diff-tag" id="diff-${idx}">--</span>
+        </div>
+      `;
+      gridEl.appendChild(card);
+    });
+
+    function getZonedParts(date, timeZone) {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hourCycle: "h23",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).formatToParts(date);
+
+      const map = {};
+      for (const p of parts) {
+        if (p.type !== "literal") map[p.type] = Number(p.value);
+      }
+      const wallUtcMs = Date.UTC(map.year, map.month - 1, map.day, map.hour, map.minute, map.second);
+      const weekdayIdx = new Date(wallUtcMs).getUTCDay();
+      const dateKey = `${map.year}-${String(map.month).padStart(2, "0")}-${String(map.day).padStart(2, "0")}`;
+
+      return { ...map, wallUtcMs, weekdayIdx, dateKey };
+    }
+
+    function formatUtcOffset(minutes) {
+      const sign = minutes >= 0 ? "+" : "-";
+      const abs = Math.abs(minutes);
+      const h = Math.floor(abs / 60);
+      const m = abs % 60;
+      return m === 0 ? `UTC${sign}${h}` : `UTC${sign}${h}:${String(m).padStart(2, "0")}`;
+    }
+
+    function formatDiffFromTaipei(diffMinutes, targetDateKey, taipeiDateKey, isHome) {
+      if (isHome) return "基準時間";
+      const dayLabel =
+        targetDateKey < taipeiDateKey ? "昨天 · " :
+        targetDateKey > taipeiDateKey ? "明天 · " : "";
+
+      if (diffMinutes === 0) return `${dayLabel}無時差`;
+      const absHours = Math.abs(diffMinutes) / 60;
+      const hourText = Number.isInteger(absHours) ? `${absHours}` : absHours.toFixed(1);
+      const dir = diffMinutes > 0 ? "快" : "慢";
+      return `${dayLabel}${dir} ${hourText} 小時`;
+    }
+
+    function updateClocks() {
+      const now = new Date();
+      const utcWallMs = Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate(),
+        now.getUTCHours(),
+        now.getUTCMinutes(),
+        now.getUTCSeconds()
+      );
+      const taipei = getZonedParts(now, "Asia/Taipei");
+
+      CITIES.forEach((city, idx) => {
+        const z = getZonedParts(now, city.timeZone);
+        const utcOffsetMin = Math.round((z.wallUtcMs - utcWallMs) / 60000);
+        const diffTaipeiMin = Math.round((z.wallUtcMs - taipei.wallUtcMs) / 60000);
+
+        let displayHour = z.hour;
+        let ampm = "";
+        if (!is24Hour) {
+          ampm = z.hour >= 12 ? "PM" : "AM";
+          displayHour = z.hour % 12 || 12;
+        }
+
+        const hh = String(displayHour).padStart(2, "0");
+        const mm = String(z.minute).padStart(2, "0");
+        const ss = String(z.second).padStart(2, "0");
+
+        document.getElementById(`hm-${idx}`).textContent = `${hh}:${mm}`;
+        document.getElementById(`sec-${idx}`).textContent = ss;
+        document.getElementById(`ampm-${idx}`).textContent = ampm;
+
+        const isDay = z.hour >= 6 && z.hour < 18;
+        const dnEl = document.getElementById(`daynight-${idx}`);
+        dnEl.textContent = isDay ? "☀ 白天" : "☾ 夜晚";
+        dnEl.className = `badge ${isDay ? "day" : "night"}`;
+
+        document.getElementById(`utc-${idx}`).textContent = formatUtcOffset(utcOffsetMin);
+        document.getElementById(`date-${idx}`).textContent =
+          `${z.year}/${String(z.month).padStart(2, "0")}/${String(z.day).padStart(2, "0")} ${WEEKDAYS[z.weekdayIdx]}`;
+        document.getElementById(`diff-${idx}`).textContent =
+          formatDiffFromTaipei(diffTaipeiMin, z.dateKey, taipei.dateKey, city.isHome);
+      });
+    }
+
+    // 切換 24H / 12H
+    const formatBtn = document.getElementById("toggleFormat");
+    formatBtn.addEventListener("click", () => {
+      is24Hour = !is24Hour;
+      formatBtn.textContent = is24Hour ? "24 小時制" : "12 小時制";
+      updateClocks();
+    });
+
+    // 切換深色 / 淺色主題
+    const themeBtn = document.getElementById("toggleTheme");
+    themeBtn.addEventListener("click", () => {
+      document.body.classList.toggle("light");
+      const isLight = document.body.classList.contains("light");
+      themeBtn.textContent = isLight ? "深色模式" : "淺色模式";
+    });
+
+    // 一鍵複製所有城市即時時間
+    const copyBtn = document.getElementById("copyAll");
+    copyBtn.addEventListener("click", async () => {
+      const lines = CITIES.map((city, idx) => {
+        const hm = document.getElementById(`hm-${idx}`).textContent;
+        const sec = document.getElementById(`sec-${idx}`).textContent;
+        const ampm = document.getElementById(`ampm-${idx}`).textContent;
+        const date = document.getElementById(`date-${idx}`).textContent;
+        return `${city.name}：${date} ${hm}:${sec}${ampm ? " " + ampm : ""}`;
+      });
+      try {
+        await navigator.clipboard.writeText(lines.join("\n"));
+        copyBtn.textContent = "已複製 ✓";
+        setTimeout(() => (copyBtn.textContent = "複製時間"), 1500);
+      } catch {
+        copyBtn.textContent = "複製失敗";
+        setTimeout(() => (copyBtn.textContent = "複製時間"), 1500);
+      }
+    });
+
+    // 開啟後立即執行並對齊整秒跳動
+    updateClocks();
+    const delayToNextSecond = 1000 - (Date.now() % 1000);
+    setTimeout(() => {
+      updateClocks();
+      setInterval(updateClocks, 1000);
+    }, delayToNextSecond);
+  </script>
+</body>
+</html>
